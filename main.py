@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from monitor import TruthSocialMonitor
 from llm_processor import LLMProcessor
-from wechat_notifier import PushPlusNotifier
+from wechat_notifier import PushPlusNotifier, WeChatNotifier
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,18 +13,21 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def main():
     load_dotenv()
     
+    webhook_url = os.environ.get("WEBHOOK_URL")
     pushplus_token = os.environ.get("PUSHPLUS_TOKEN")
     pushplus_topic = os.environ.get("PUSHPLUS_TOPIC")
     
-    if not pushplus_token:
-        logging.error("Please set PUSHPLUS_TOKEN in .env file")
+    if not webhook_url and not pushplus_token:
+        logging.error("Please set at least WEBHOOK_URL or PUSHPLUS_TOKEN in .env file")
         return
 
     monitor = TruthSocialMonitor()
     llm_processor = LLMProcessor()
-    notifier = PushPlusNotifier(pushplus_token, pushplus_topic)
+    
+    wechat_notifier = WeChatNotifier(webhook_url) if webhook_url else None
+    pushplus_notifier = PushPlusNotifier(pushplus_token, pushplus_topic) if pushplus_token else None
 
-    logging.info("Starting Truth Social Monitor (PushPlus Edition)...")
+    logging.info("Starting Truth Social Monitor (Dual Push Edition)...")
     
     while True:
         try:
@@ -33,27 +36,34 @@ def main():
             if post:
                 logging.info(f"New post detected! ID: {post['id']}")
                 
-                # Use LLM to translate and analyze
+                # ------ 1. 企业微信：提前发送原文 ------
+                if wechat_notifier:
+                    msg1 = f"""<font color="warning">🚨 特朗普在 Truth Social 发布了新动态 (1/4：英文原文)</font>\n
+> **发布时间**: {post['published']}
+> **原帖链接**: [点击查看原帖]({post['link']})
+
+{post['title']}
+"""
+                    wechat_notifier.send_markdown(msg1)
+                
+                # ------ 2. 调用大模型 ------
                 logging.info("Calling LLM for translation and analysis...")
                 llm_result = llm_processor.process_post(post['content'])
                 
-                title = "🚨 特朗普 Truth Social 新动态"
-                
+                # ------ 3. 推送结果 ------
                 if not llm_result:
                     logging.error("LLM processing failed, sending original text only.")
-                    content = f"""**发布时间**: {post['published']}
-**原帖链接**: [点击查看原帖]({post['link']})
-
----
-
-### 🇺🇸 英文原文
-{post['title']}
-"""
-                    notifier.send_markdown(title, content)
+                    
+                    if pushplus_notifier:
+                        title = "🚨 特朗普 Truth Social 新动态"
+                        content = f"**发布时间**: {post['published']}\n**原帖链接**: [点击查看原帖]({post['link']})\n\n### 🇺🇸 英文原文\n{post['title']}"
+                        pushplus_notifier.send_markdown(title, content)
                     continue
                 
-                # Merge into one beautifully formatted message for PushPlus
-                merged_message = f"""**发布时间**: {post['published']}
+                # 3.1 PushPlus 统一发送 (合并消息体验更好)
+                if pushplus_notifier:
+                    title = "🚨 特朗普 Truth Social 新动态"
+                    merged_message = f"""**发布时间**: {post['published']}
 **原帖链接**: [点击查看原帖]({post['link']})
 
 ---
@@ -76,7 +86,20 @@ def main():
 ### 💡 投资建议
 {llm_result.get('advice', '无内容')}
 """
-                notifier.send_markdown(title, merged_message)
+                    pushplus_notifier.send_markdown(title, merged_message)
+
+                # 3.2 企业微信 拆分发送
+                if wechat_notifier:
+                    msg2 = f"""<font color="info">📄 特朗普新动态 (2/4：中文翻译)</font>\n\n{llm_result.get('translation', '无内容')}"""
+                    wechat_notifier.send_markdown(msg2)
+                    time.sleep(1)
+                    
+                    msg3 = f"""<font color="info">🔍 特朗普新动态 (3/4：深度解读)</font>\n\n{llm_result.get('analysis', '无内容')}"""
+                    wechat_notifier.send_markdown(msg3)
+                    time.sleep(1)
+                    
+                    msg4 = f"""<font color="info">💡 特朗普新动态 (4/4：投资建议)</font>\n\n{llm_result.get('advice', '无内容')}"""
+                    wechat_notifier.send_markdown(msg4)
                 
             time.sleep(10)
             
