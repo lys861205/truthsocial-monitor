@@ -12,7 +12,7 @@ class LLMProcessor:
         # 阿里云百炼大模型的兼容 OpenAI 接口
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://llm-bqekmnpb3p3hab4k.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
 
     def process_post(self, post_content):
