@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from monitor import TruthSocialMonitor
 from llm_processor import LLMProcessor
-from wechat_notifier import PushPlusNotifier, WeChatNotifier
+from wechat_notifier import PushPlusNotifier, WeChatNotifier, FeishuNotifier, DingTalkNotifier
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -16,9 +16,13 @@ def main():
     webhook_url = os.environ.get("WEBHOOK_URL")
     pushplus_token = os.environ.get("PUSHPLUS_TOKEN")
     pushplus_topic = os.environ.get("PUSHPLUS_TOPIC")
+    feishu_webhook = os.environ.get("FEISHU_WEBHOOK")
+    feishu_secret = os.environ.get("FEISHU_SECRET")
+    dingtalk_webhook = os.environ.get("DINGTALK_WEBHOOK")
+    dingtalk_secret = os.environ.get("DINGTALK_SECRET")
     
-    if not webhook_url and not pushplus_token:
-        logging.error("Please set at least WEBHOOK_URL or PUSHPLUS_TOKEN in .env file")
+    if not any([webhook_url, pushplus_token, feishu_webhook, dingtalk_webhook]):
+        logging.error("Please set at least one Webhook/Token in .env file")
         return
 
     monitor = TruthSocialMonitor()
@@ -26,8 +30,10 @@ def main():
     
     wechat_notifier = WeChatNotifier(webhook_url) if webhook_url else None
     pushplus_notifier = PushPlusNotifier(pushplus_token, pushplus_topic) if pushplus_token else None
+    feishu_notifier = FeishuNotifier(feishu_webhook, feishu_secret) if feishu_webhook else None
+    dingtalk_notifier = DingTalkNotifier(dingtalk_webhook, dingtalk_secret) if dingtalk_webhook else None
 
-    logging.info("Starting Truth Social Monitor (Dual Push Edition)...")
+    logging.info("Starting Truth Social Monitor (Multi-Push Edition)...")
     
     while True:
         try:
@@ -50,20 +56,20 @@ def main():
                 logging.info("Calling LLM for translation and analysis...")
                 llm_result = llm_processor.process_post(post['content'])
                 
+                title = "🚨 特朗普 Truth Social 新动态"
+                
                 # ------ 3. 推送结果 ------
                 if not llm_result:
                     logging.error("LLM processing failed, sending original text only.")
+                    content = f"**发布时间**: {post['published']}\n**原帖链接**: [点击查看原帖]({post['link']})\n\n### 🇺🇸 英文原文\n{post['title']}"
                     
-                    if pushplus_notifier:
-                        title = "🚨 特朗普 Truth Social 新动态"
-                        content = f"**发布时间**: {post['published']}\n**原帖链接**: [点击查看原帖]({post['link']})\n\n### 🇺🇸 英文原文\n{post['title']}"
-                        pushplus_notifier.send_markdown(title, content)
+                    if pushplus_notifier: pushplus_notifier.send_markdown(title, content)
+                    if feishu_notifier: feishu_notifier.send_markdown(title, content)
+                    if dingtalk_notifier: dingtalk_notifier.send_markdown(title, content)
                     continue
                 
-                # 3.1 PushPlus 统一发送 (合并消息体验更好)
-                if pushplus_notifier:
-                    title = "🚨 特朗普 Truth Social 新动态"
-                    merged_message = f"""**发布时间**: {post['published']}
+                # 3.1 统一发送 (合并消息版：适合 PushPlus, Feishu, DingTalk)
+                merged_message = f"""**发布时间**: {post['published']}
 **原帖链接**: [点击查看原帖]({post['link']})
 
 ---
@@ -86,7 +92,9 @@ def main():
 ### 💡 投资建议
 {llm_result.get('advice', '无内容')}
 """
-                    pushplus_notifier.send_markdown(title, merged_message)
+                if pushplus_notifier: pushplus_notifier.send_markdown(title, merged_message)
+                if feishu_notifier: feishu_notifier.send_markdown(title, merged_message)
+                if dingtalk_notifier: dingtalk_notifier.send_markdown(title, merged_message)
 
                 # 3.2 企业微信 拆分发送
                 if wechat_notifier:
