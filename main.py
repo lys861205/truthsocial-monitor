@@ -36,68 +36,62 @@ def main():
             if post:
                 logging.info(f"New post detected! ID: {post['id']}")
                 
-                # ------ 1. 企业微信：提前发送原文 ------
+                # ------ 1. 提前发送原文 (1/4) ------
+                title1 = "🚨 特朗普发布了新动态 (1/4：英文原文)"
+                
                 if wechat_notifier:
-                    msg1 = f"""<font color="warning">🚨 特朗普在 Truth Social 发布了新动态 (1/4：英文原文)</font>\n
+                    msg1_wechat = f"""<font color="warning">{title1}</font>\n
 > **发布时间**: {post['published']}
 > **原帖链接**: [点击查看原帖]({post['link']})
 
-{post['title']}
-"""
-                    wechat_notifier.send_markdown(msg1)
+{post['title']}"""
+                    wechat_notifier.send_markdown(msg1_wechat)
+                    
+                if feishu_notifier:
+                    msg1_feishu = f"**发布时间**: {post['published']}\n**原帖链接**: [点击查看原帖]({post['link']})\n\n{post['title']}"
+                    feishu_notifier.send_markdown(title1, msg1_feishu)
                 
                 # ------ 2. 调用大模型 ------
                 logging.info("Calling LLM for translation and analysis...")
                 llm_result = llm_processor.process_post(post['content'])
                 
-                title = "🚨 特朗普 Truth Social 新动态"
-                
-                # ------ 3. 推送结果 ------
+                # ------ 3. 推送 LLM 结果 ------
                 if not llm_result:
                     logging.error("LLM processing failed, sending original text only.")
-                    content = f"**发布时间**: {post['published']}\n**原帖链接**: [点击查看原帖]({post['link']})\n\n### 🇺🇸 英文原文\n{post['title']}"
-                    
-                    if feishu_notifier: feishu_notifier.send_markdown(title, content)
                     continue
                 
-                # 3.1 统一发送 (合并消息版：适合 Feishu)
-                merged_message = f"""**发布时间**: {post['published']}
-**原帖链接**: [点击查看原帖]({post['link']})
-
----
-
-### 🇺🇸 英文原文
-{post['title']}
-
----
-
-### 🇨🇳 中文翻译
-{llm_result.get('translation', '无内容')}
-
----
-
-### 🔍 深度解读
-{llm_result.get('analysis', '无内容')}
-
----
-
-### 💡 投资建议
-{llm_result.get('advice', '无内容')}
-"""
-                if feishu_notifier: feishu_notifier.send_markdown(title, merged_message)
-
-                # 3.2 企业微信 拆分发送
+                time.sleep(1) # 小幅停顿，确保消息顺序
+                
+                # ------ 3.1 翻译 (2/4) ------
+                title2 = "📄 特朗普新动态 (2/4：中文翻译)"
+                content2 = llm_result.get('translation', '无内容')
+                
                 if wechat_notifier:
-                    msg2 = f"""<font color="info">📄 特朗普新动态 (2/4：中文翻译)</font>\n\n{llm_result.get('translation', '无内容')}"""
-                    wechat_notifier.send_markdown(msg2)
-                    time.sleep(1)
+                    wechat_notifier.send_markdown(f"""<font color="info">{title2}</font>\n\n{content2}""")
+                if feishu_notifier:
+                    feishu_notifier.send_markdown(title2, content2)
                     
-                    msg3 = f"""<font color="info">🔍 特朗普新动态 (3/4：深度解读)</font>\n\n{llm_result.get('analysis', '无内容')}"""
-                    wechat_notifier.send_markdown(msg3)
-                    time.sleep(1)
+                time.sleep(1)
+                
+                # ------ 3.2 深度解读 (3/4) ------
+                title3 = "🔍 特朗普新动态 (3/4：深度解读)"
+                content3 = llm_result.get('analysis', '无内容')
+                
+                if wechat_notifier:
+                    wechat_notifier.send_markdown(f"""<font color="info">{title3}</font>\n\n{content3}""")
+                if feishu_notifier:
+                    feishu_notifier.send_markdown(title3, content3)
                     
-                    msg4 = f"""<font color="info">💡 特朗普新动态 (4/4：投资建议)</font>\n\n{llm_result.get('advice', '无内容')}"""
-                    wechat_notifier.send_markdown(msg4)
+                time.sleep(1)
+                
+                # ------ 3.3 投资建议 (4/4) ------
+                title4 = "💡 特朗普新动态 (4/4：投资建议)"
+                content4 = llm_result.get('advice', '无内容')
+                
+                if wechat_notifier:
+                    wechat_notifier.send_markdown(f"""<font color="info">{title4}</font>\n\n{content4}""")
+                if feishu_notifier:
+                    feishu_notifier.send_markdown(title4, content4)
                 
             time.sleep(10)
             
