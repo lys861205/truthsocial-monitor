@@ -14,6 +14,7 @@ class LLMProcessor:
             api_key=api_key,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
+        self.model_name = os.environ.get("LLM_MODEL_NAME", "qwen-plus")
 
     def process_post(self, post_content):
         """
@@ -33,7 +34,7 @@ class LLMProcessor:
 """
         try:
             response = self.client.chat.completions.create(
-                model="qwen-plus", # 可选 qwen-max, qwen-turbo
+                model=self.model_name,
                 messages=[
                     {"role": "system", "content": "你是一位专业的美国政治分析师，只能输出 JSON。"},
                     {"role": "user", "content": prompt}
