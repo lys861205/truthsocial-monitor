@@ -41,20 +41,7 @@ def main():
                     logging.info("Post has no text content (e.g. only images/videos). Skipping push.")
                     continue
                 
-                # ------ 1. 先调用大模型进行分析和过滤 ------
-                logging.info("Calling LLM for translation, analysis, and filtering...")
-                llm_result = llm_processor.process_post(post['content'])
-                
-                if not llm_result:
-                    logging.error("LLM processing failed, skipping this post to maintain quality.")
-                    continue
-                    
-                # 检查 AI 过滤标签
-                if llm_result.get('is_valuable') is False:
-                    logging.info("AI determined this post is NOT valuable (noise/propaganda). Skipping push.")
-                    continue
-                    
-                # ------ 2. 推送原文 (1/4) ------
+                # ------ 1. 立即推送原文 (第一时间发出) ------
                 title1 = "🚨 特朗普发布了新动态 (1/4：英文原文)"
                 
                 if wechat_notifier:
@@ -69,7 +56,25 @@ def main():
                     msg1_feishu = f"**发布时间**: {post['published']}\n**原帖链接**: [点击查看原帖]({post['link']})\n\n{post['title']}"
                     feishu_notifier.send_markdown(title1, msg1_feishu)
                 
+                # ------ 2. 调用大模型进行分析和判断 ------
+                logging.info("Calling LLM for translation, analysis, and filtering...")
+                llm_result = llm_processor.process_post(post['content'])
+                
+                if not llm_result:
+                    logging.error("LLM processing failed.")
+                    continue
+                    
                 time.sleep(1) # 小幅停顿，确保消息顺序
+                
+                # 检查 AI 过滤标签 (策略C：发废话通知并终止后续推送)
+                if llm_result.get('is_valuable') is False:
+                    logging.info("AI determined this post is NOT valuable (noise/propaganda). Sending noise notification.")
+                    noise_msg = "🤖 **智能过滤通知**：大模型判定此推文为日常竞选口号或无实质政经内容，自动过滤后续深度解读和投资建议。"
+                    if wechat_notifier:
+                        wechat_notifier.send_markdown(f"""<font color="comment">{noise_msg}</font>""")
+                    if feishu_notifier:
+                        feishu_notifier.send_markdown("🤖 智能脱水 (2/2)", noise_msg)
+                    continue
                 
                 # ------ 3.1 翻译 (2/4) ------
                 title2 = "📄 特朗普新动态 (2/4：中文翻译)"
