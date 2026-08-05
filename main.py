@@ -36,6 +36,11 @@ def main():
             if post:
                 logging.info(f"New post detected! ID: {post['id']}")
                 
+                # ------ 0. 过滤无文字内容的帖子 ------
+                if not post.get('content') or not post['content'].strip():
+                    logging.info("Post has no text content (e.g. only images/videos). Skipping push.")
+                    continue
+                
                 # ------ 1. 先调用大模型进行分析和过滤 ------
                 logging.info("Calling LLM for translation, analysis, and filtering...")
                 llm_result = llm_processor.process_post(post['content'])
