@@ -36,7 +36,20 @@ def main():
             if post:
                 logging.info(f"New post detected! ID: {post['id']}")
                 
-                # ------ 1. 提前发送原文 (1/4) ------
+                # ------ 1. 先调用大模型进行分析和过滤 ------
+                logging.info("Calling LLM for translation, analysis, and filtering...")
+                llm_result = llm_processor.process_post(post['content'])
+                
+                if not llm_result:
+                    logging.error("LLM processing failed, skipping this post to maintain quality.")
+                    continue
+                    
+                # 检查 AI 过滤标签
+                if llm_result.get('is_valuable') is False:
+                    logging.info("AI determined this post is NOT valuable (noise/propaganda). Skipping push.")
+                    continue
+                    
+                # ------ 2. 推送原文 (1/4) ------
                 title1 = "🚨 特朗普发布了新动态 (1/4：英文原文)"
                 
                 if wechat_notifier:
@@ -50,15 +63,6 @@ def main():
                 if feishu_notifier:
                     msg1_feishu = f"**发布时间**: {post['published']}\n**原帖链接**: [点击查看原帖]({post['link']})\n\n{post['title']}"
                     feishu_notifier.send_markdown(title1, msg1_feishu)
-                
-                # ------ 2. 调用大模型 ------
-                logging.info("Calling LLM for translation and analysis...")
-                llm_result = llm_processor.process_post(post['content'])
-                
-                # ------ 3. 推送 LLM 结果 ------
-                if not llm_result:
-                    logging.error("LLM processing failed, sending original text only.")
-                    continue
                 
                 time.sleep(1) # 小幅停顿，确保消息顺序
                 

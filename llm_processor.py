@@ -21,11 +21,16 @@ class LLMProcessor:
         Translates, interprets, and provides suggestions for a given post using Qwen.
         """
         prompt = f"""
-请你扮演一位专业的美国政治分析师，针对唐纳德·特朗普(Donald Trump)刚刚发布的一条推文(Truth)，完成以下三个任务。
+请你扮演一位专业的美国政治分析师，针对唐纳德·特朗普(Donald Trump)刚刚发布的一条推文(Truth)，完成以下任务。
+
+【重要前置过滤任务】
+请首先判断这条推文是否包含实质性的政经、金融、关税、政策或国际关系信息。如果是纯粹的情绪发泄、竞选口号（如 MAGA）、或者是毫无意义的闲聊，请将 `is_valuable` 设置为 false。只有当判定为 false 时，其他字段可以为空；否则 `is_valuable` 必须为 true。
+
 特别注意：【深度解读】和【投资建议】必须精简核心观点，各自控制在 200 字以内！
 
-请严格以 JSON 格式返回，必须包含以下三个字段，不要输出除 JSON 以外的任何分析解释内容：
+请严格以 JSON 格式返回，必须包含以下四个字段，不要输出除 JSON 以外的任何内容：
 {{
+  "is_valuable": true 或 false,
   "translation": "中文翻译...",
   "analysis": "深度解读（限200字以内）...",
   "advice": "投资建议（限200字以内）..."
