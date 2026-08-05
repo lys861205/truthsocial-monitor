@@ -36,9 +36,9 @@ def main():
             if post:
                 logging.info(f"New post detected! ID: {post['id']}")
                 
-                # ------ 0. 过滤无文字内容的帖子 ------
-                if not post.get('content') or not post['content'].strip():
-                    logging.info("Post has no text content (e.g. only images/videos). Skipping push.")
+                # ------ 0. 过滤无文字内容的帖子 (以剥离HTML后的纯文本 title 为准) ------
+                if not post.get('title') or not post['title'].strip():
+                    logging.info("Post has no text content (e.g. only images/videos/links). Skipping push.")
                     continue
                 
                 # ------ 1. 立即推送原文 (第一时间发出) ------
