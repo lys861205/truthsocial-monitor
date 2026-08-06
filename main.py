@@ -41,6 +41,32 @@ def main():
                 if not title_text or title_text.startswith("[No Title]"):
                     logging.info("Post has no text content (e.g. only images/videos/links). Skipping push.")
                     continue
+                    
+                # ------ 0.5 本地预判：过滤极度明显的日常口号（省去大模型调用和无意义推送） ------
+                def is_obviously_noise(text):
+                    text_lower = text.lower()
+                    words = text.split()
+                    
+                    # 1. 字数极少（比如少于 4 个单词或 15 个字符）必定是口号
+                    if len(words) < 4 or len(text) < 15:
+                        return True
+                        
+                    # 2. 短句且包含典型竞选口号
+                    noise_buzzwords = ["maga", "make america great again", "vote", "witch hunt", "fake news", "america first"]
+                    if len(words) < 10:
+                        for kw in noise_buzzwords:
+                            if kw in text_lower:
+                                return True
+                                
+                    # 3. 纯大写咆哮体且篇幅不长
+                    if len(words) < 15 and text.isupper():
+                        return True
+                        
+                    return False
+
+                if is_obviously_noise(title_text):
+                    logging.info("Local filter judged this as obvious noise/slogan. Dropping completely.")
+                    continue
                 
                 # ------ 1. 立即推送原文 (第一时间发出) ------
                 title1 = "🚨 特朗普发布了新动态 (1/4：英文原文)"
